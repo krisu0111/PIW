@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top">
+        <h1>Durne Gierki</h1>
+        <nav>
+            <button>Dodaj nową pozycję</button>
+            <button>Koszyk</button>
+            <button>Zaloguj się</button>
+            <button>Wyloguj się</button>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        <aside class="filters">
+            <h2>Filtry</h2>
+            <label>Słowo w opisie: <input type="text"></label>
+            <label>Cena do [zł]: <input type="number" placeholder="Np. 100"></label>
+            <label>Rodzaj gry: 
+                <select>
+                    <option>Strategiczna</option>
+                    <option>Imprezowa</option>
+                    <option>Rodzinna</option>
+                </select>
+            </label>
+            <label>Ilość graczy: <input type="number" placeholder="Np. 4"></label>
+            <label>Wydawnictwo: <input type="text" placeholder="Np. Rebel"></label>
+            <button>Szukaj</button>
+        </aside>
+
+        <main class="product-list">
+            <article class="product-card" data-price="100" data-category="strategiczna"> 
+                <h3>Catan</h3>
+                <p>Klasyczna gra strategiczna</p>
+                <p><b>Cena: 100 zł</b></p>
+            </article>
+            <article class="product-card">
+                <h3>Tajniacy</h3>
+                <p>Gra imprezowa</p>
+                <p><b>Cena: 80 zł</b></p>
+            </article>
+            <article class="product-card">
+                <h3>Kalambury</h3>
+                <p>Gra imprezowa 2</p>
+                <p><b>Cena: 50 zł</b></p>
+            </article>
+            <article class="product-card">
+                <h3>Szachy</h3>
+                <p>Gra strategiczna 2</p>
+                <p><b>Cena: 90 zł</b></p>
+            </article>
+            <article class="product-card">
+                <h3>Warcaby</h3>
+                <p>Gra strategiczna 3</p>
+                <p><b>Cena: 90 zł</b></p>
+            </article>
+            <article class="product-card">
+                <h3>Robale</h3>
+                <p>Gra imprezowa 3</p>
+                <p><b>Cena: 120 zł</b></p>
+            </article>
+        </main>
+    </div>
+</body>
+</html>
