@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab2</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="whole">
+        <h1>ToDo lista</h1>
+
+        <div class="search">
+            <input type="text" id="searchInput" placeholder="Szukaj zadań">
+            <label>
+                <input type="checkbox" id="caseInsensitiveCheckbox" checked>
+                Ignoruj wielkość liter
+            </label>
+            <button id="undoBtn" disabled>Cofnij usunięcie</button>
+        </div>
+
+        <div class="add">
+            <input type="text" id="taskInput" placeholder="Treść zadania...">
+            <select id="importance">
+                <option value="pilne">Pilne</option>
+                <option value="zwyczajne">Mało pilne</option>
+                <option value="na-wczoraj">Na wczoraj</option>
+            </select>
+            <button id="addBtn">Dodaj</button>
+        </div>
+
+        <div id="Lists">
+            <h3 class="urgent">Pilne</h3>
+            <ul id="list-pilne"></ul>
+
+            <h3 class="normal">Mało pilne</h3>
+            <ul id="list-zwyczajne"></ul>
+
+            <h3 class="late">Na wczoraj</h3>
+            <ul id="list-na-wczoraj"></ul>
+        </div>
+    </div>
+
+    <div id="deleteConfirmation" class="modal">
+        <div class="modal-content">
+            <p id="modal-text"></p>
+            <div id="modal-buttons">
+                <button id="confirmDel">Tak, usuń</button>
+                <button id="cancelDel">Anuluj</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
