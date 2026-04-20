@@ -16,7 +16,6 @@ body {
 }
 
 
-
 .search, .add {
     margin-bottom: 20px;
     padding: 10px;
@@ -24,7 +23,7 @@ body {
 }
 
 .done {
-    text-decoration: ne-through;
+    text-decoration: line-through;
     color: gray;
 }
 

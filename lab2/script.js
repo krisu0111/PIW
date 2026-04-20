@@ -71,7 +71,7 @@ confirmDel.addEventListener('click', function() {
     if (toDelete !== null) {
         lastDeleted = {
             element: toDelete,
-            rodzic: toDelete.parentElement
+            parent: toDelete.parentElement
         };
 
         toDelete.remove();
@@ -91,7 +91,7 @@ cancelDel.addEventListener('click', function() {
 
 undoBtn.addEventListener('click', function() {
     if (lastDeleted !== null) {
-        lastDeleted.rodzic.appendChild(lastDeleted.element);
+        lastDeleted.parent.appendChild(lastDeleted.element);
 
         undoBtn.disabled = true;
         lastDeleted = null;
