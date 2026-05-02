@@ -1,0 +1,67 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial;
+}
+
+.top {
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.filters {
+    padding: 10px;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+
+
+.product-list {
+    padding: 10px;
+    flex-grow: 1;
+    
+    display: grid; 
+    grid-template-columns: repeat(5, 1fr);
+}
+
+/* Tylko zebym widzial jak duze sa boxy na gry planszowe*/
+.product-card {
+    border: 1px solid #ccc;
+    padding: 15px;
+    border-radius: 8px;
+    background-color: white;
+}
+
+@media (max-width: 768px) {
+    .main-container {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .product-list {
+        grid-template-columns: 1fr;
+    }
+
+
+    .filters {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .top {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
