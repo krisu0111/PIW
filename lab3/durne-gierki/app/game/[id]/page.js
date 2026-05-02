@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export default function GameDetails({ params }) {
     const [game, setGame] = useState(null);
-    const [isLoading, setIsLoading] = useState(true); // Dodajemy stan ładowania
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         params.then((resolvedParams) => {
