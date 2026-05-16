@@ -2,6 +2,9 @@
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { db, auth } from '../../../lib/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function EditGame({ params }) {
     const resolvedParams = use(params); 
@@ -10,40 +13,72 @@ export default function EditGame({ params }) {
     const [formData, setFormData] = useState({
         title: '', description: '', price: '', publisher: ''
     });
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const savedGames = JSON.parse(localStorage.getItem('durneGierkiDB') || '[]');
-        const gameToEdit = savedGames.find(g => g.id.toString() === resolvedParams.id);
-        
-        if (gameToEdit) {
-        setFormData({
-            title: gameToEdit.title,
-            description: gameToEdit.description ? gameToEdit.description.join('\n') : '',
-            price: gameToEdit.price_pln,
-            publisher: gameToEdit.publisher
-        });
-        }
-    }, [resolvedParams.id]);
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (!currentUser) {
+                alert("Musisz być zalogowany żeby edytować gry");
+                router.push('/login');
+                return;
+            }
 
-    const handleSubmit = (e) => {
+            try {
+                const docRef = doc(db, "games", resolvedParams.id);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const gameToEdit = docSnap.data();
+                    
+                    if (gameToEdit.ownerId !== currentUser.uid) {
+                        alert("Możesz edytować tylko SWOJE gry (dodane przez ciebie)");
+                        router.push('/');
+                        return;
+                    }
+
+                    setFormData({
+                        title: gameToEdit.title || '',
+                        description: gameToEdit.description ? gameToEdit.description.join('\n') : '',
+                        price: gameToEdit.price_pln || '',
+                        publisher: gameToEdit.publisher || ''
+                    });
+                } else {
+                    alert("Nie znaleziono gry w bazie");
+                    router.push('/');
+                }
+            } catch (error) {
+                console.error("Błąd pobierania danych:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [resolvedParams.id, router]);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const savedGames = JSON.parse(localStorage.getItem('durneGierkiDB') || '[]');
-        const index = savedGames.findIndex(g => g.id.toString() === resolvedParams.id);
-        
-        if (index !== -1) {
-        savedGames[index] = {
-            ...savedGames[index],
-            title: formData.title,
-            description: formData.description.split('\n'),
-            price_pln: parseFloat(formData.price),
-            publisher: formData.publisher
-        };
-        
-        localStorage.setItem('durneGierkiDB', JSON.stringify(savedGames));
-        alert("Gra została pomyślnie zaktualizowana!");
-        router.push('/');
+        try {
+            const docRef = doc(db, "games", resolvedParams.id);
+            
+            await updateDoc(docRef, {
+                title: formData.title,
+                description: formData.description.split('\n'),
+                price_pln: parseFloat(formData.price),
+                publisher: formData.publisher
+            });
+            
+            alert("Gra została zaktualizowana");
+            router.push('/');
+        } catch (error) {
+            console.error("Błąd aktualizacji gry:", error);
+            alert("Błąd przy zapisie");
         }
     };
+
+    if (isLoading) {
+        return <div style={{ padding: '20px' }}>Ładowanie danych</div>;
+    }
 
     return (
         <>
