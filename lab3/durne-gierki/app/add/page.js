@@ -1,41 +1,72 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { db, auth } from '../../lib/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function AddGame() {
     const router = useRouter();
+    const [user, setUser] = useState(null);
+    
     const [formData, setFormData] = useState({
         title: '',
-        description: '',
         price: '',
-        publisher: ''
+        publisher: '',
+        startingPrice: ''
     });
 
-    const handleSubmit = (e) => {
+    const descriptionRef = useRef(null);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            if (!currentUser) {
+                alert("Musisz być zalogowany żeby dodać nową grę");
+                router.push('/login');
+            } else {
+                setUser(currentUser);
+            }
+        });
+        return () => unsubscribe();
+    }, [router]);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         
-        const savedGames = JSON.parse(localStorage.getItem('durneGierkiDB') || '[]');
-        const newId = savedGames.length > 0 ? Math.max(...savedGames.map(g => g.id)) + 1 : 1;
+        if (!user) {
+            alert("Brak autoryzacji uzytkownika");
+            return;
+        }
         
-        const newGame = {
-        id: newId,
-        title: formData.title,
-        description: formData.description.split('\n'), 
-        price_pln: parseFloat(formData.price),
-        publisher: formData.publisher,
-        min_players: 2, 
-        max_players: 4, 
-        type: "nieokreślony"
-        };
+        try {
+            const auctionData = formData.startingPrice ? {
+                starting_price: parseFloat(formData.startingPrice),
+                current_bid: parseFloat(formData.startingPrice),
+                highest_bidder_uid: null
+            } : null;
 
-        savedGames.push(newGame);
-        localStorage.setItem('durneGierkiDB', JSON.stringify(savedGames));
-        
-        console.log("Zapisano nową grę (tymczasowo):", newGame);
-        alert("Gra została pomyślnie dodana! (Zapis jest tymczasowy, sprawdź konsolę przeglądarki)");
-        
-        router.push('/');
+            const newGame = {
+                title: formData.title,
+                description: descriptionRef.current.value.split('\n'), 
+                price_pln: parseFloat(formData.price),
+                publisher: formData.publisher,
+                min_players: 2, 
+                max_players: 4, 
+                type: "nieokreślony",
+                isSold: false,
+                ownerId: user.uid,
+                auction: auctionData
+            };
+
+            await addDoc(collection(db, "games"), newGame);
+            
+            alert("Gra została pomyślnie dodana");
+            router.push('/');
+        } catch (error) {
+            console.error("Błąd dodawania gry:", error);
+            alert("Błąd przy zapisie");
+        }
     };
 
     return (
@@ -68,9 +99,8 @@ export default function AddGame() {
                 <label style={{ display: 'flex', flexDirection: 'column' }}>
                 Opis szczegółowy: 
                 <textarea 
+                    ref={descriptionRef}
                     rows="5" 
-                    value={formData.description}
-                    onChange={e => setFormData({...formData, description: e.target.value})}
                     style={{ padding: '5px', marginTop: '5px' }}
                 ></textarea>
                 </label>
@@ -82,6 +112,17 @@ export default function AddGame() {
                     value={formData.price}
                     onChange={e => setFormData({...formData, price: e.target.value})} 
                     required 
+                    style={{ width: '100%', padding: '5px', marginTop: '5px' }}
+                />
+                </label>
+
+                <label>
+                Cena wywoławcza licytacji (opcjonalnie): 
+                <input 
+                    type="number" 
+                    step="0.01"
+                    value={formData.startingPrice}
+                    onChange={e => setFormData({...formData, startingPrice: e.target.value})} 
                     style={{ width: '100%', padding: '5px', marginTop: '5px' }}
                 />
                 </label>
