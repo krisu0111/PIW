@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { db, auth } from '../../../lib/firebase';
@@ -11,9 +11,11 @@ export default function EditGame({ params }) {
     const router = useRouter();
     
     const [formData, setFormData] = useState({
-        title: '', description: '', price: '', publisher: ''
+        title: '', price: '', publisher: ''
     });
     const [isLoading, setIsLoading] = useState(true);
+
+    const descriptionRef = useRef(null);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -38,10 +40,14 @@ export default function EditGame({ params }) {
 
                     setFormData({
                         title: gameToEdit.title || '',
-                        description: gameToEdit.description ? gameToEdit.description.join('\n') : '',
                         price: gameToEdit.price_pln || '',
                         publisher: gameToEdit.publisher || ''
                     });
+
+                    if (descriptionRef.current) {
+                        descriptionRef.current.value = gameToEdit.description ? gameToEdit.description.join('\n') : '';
+                    }
+
                 } else {
                     alert("Nie znaleziono gry w bazie");
                     router.push('/');
@@ -63,7 +69,7 @@ export default function EditGame({ params }) {
             
             await updateDoc(docRef, {
                 title: formData.title,
-                description: formData.description.split('\n'),
+                description: descriptionRef.current.value.split('\n'),
                 price_pln: parseFloat(formData.price),
                 publisher: formData.publisher
             });
@@ -110,9 +116,8 @@ export default function EditGame({ params }) {
                 <label style={{ display: 'flex', flexDirection: 'column' }}>
                 Opis szczegółowy: 
                 <textarea 
+                    ref={descriptionRef}
                     rows="5" 
-                    value={formData.description}
-                    onChange={e => setFormData({...formData, description: e.target.value})}
                     style={{ padding: '5px', marginTop: '5px' }}
                 ></textarea>
                 </label>

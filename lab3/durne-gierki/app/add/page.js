@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { db, auth } from '../../lib/firebase';
@@ -9,13 +9,15 @@ import { onAuthStateChanged } from 'firebase/auth';
 export default function AddGame() {
     const router = useRouter();
     const [user, setUser] = useState(null);
+    
     const [formData, setFormData] = useState({
         title: '',
-        description: '',
         price: '',
         publisher: '',
         startingPrice: ''
     });
+
+    const descriptionRef = useRef(null);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -46,7 +48,7 @@ export default function AddGame() {
 
             const newGame = {
                 title: formData.title,
-                description: formData.description.split('\n'), 
+                description: descriptionRef.current.value.split('\n'), 
                 price_pln: parseFloat(formData.price),
                 publisher: formData.publisher,
                 min_players: 2, 
@@ -97,9 +99,8 @@ export default function AddGame() {
                 <label style={{ display: 'flex', flexDirection: 'column' }}>
                 Opis szczegółowy: 
                 <textarea 
+                    ref={descriptionRef}
                     rows="5" 
-                    value={formData.description}
-                    onChange={e => setFormData({...formData, description: e.target.value})}
                     style={{ padding: '5px', marginTop: '5px' }}
                 ></textarea>
                 </label>

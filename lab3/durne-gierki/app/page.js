@@ -1,9 +1,24 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useReducer, useMemo } from 'react';
 import Link from 'next/link';
 import { db, auth } from '../lib/firebase';
-import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, query, limit, startAfter, orderBy } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
+
+const cartReducer = (state, action) => {
+    let newState;
+    switch (action.type) {
+        case 'ADD':
+            if (state.find(item => item.id === action.payload.id)) return state;
+            newState = [...state, action.payload];
+            localStorage.setItem('cart', JSON.stringify(newState));
+            return newState;
+        case 'INIT':
+            return action.payload;
+        default:
+            return state;
+    }
+};
 
 export default function Home() {
   const [games, setGames] = useState([]);
@@ -12,8 +27,13 @@ export default function Home() {
   });
   const [user, setUser] = useState(null);
 
+  const [cart, dispatch] = useReducer(cartReducer, []);
+
   const [currentPage, setCurrentPage] = useState(1);
-  const GAMES_PER_PAGE = 14;
+  const GAMES_PER_PAGE = 14; 
+  
+  const [pageCursors, setPageCursors] = useState([null]);
+  const [isLastPage, setIsLastPage] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -23,16 +43,51 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const fetchGames = async () => {
-      const querySnapshot = await getDocs(collection(db, "games"));
-      const gamesArray = [];
-      querySnapshot.forEach((doc) => {
-        gamesArray.push({ id: doc.id, ...doc.data() });
-      });
-      setGames(gamesArray);
-    };
-    fetchGames();
+    const savedCart = JSON.parse(localStorage.getItem('cart')) || [];
+    dispatch({ type: 'INIT', payload: savedCart });
   }, []);
+
+  const loadGamesPage = async (pageIndex) => {
+    let q;
+    if (pageIndex === 1 || !pageCursors[pageIndex - 1]) {
+        q = query(collection(db, "games"), orderBy("title"), limit(GAMES_PER_PAGE));
+    } else {
+        q = query(collection(db, "games"), orderBy("title"), startAfter(pageCursors[pageIndex - 1]), limit(GAMES_PER_PAGE));
+    }
+
+    const querySnapshot = await getDocs(q);
+    const gamesArray = [];
+    querySnapshot.forEach((doc) => {
+      gamesArray.push({ id: doc.id, ...doc.data() });
+    });
+    
+    setGames(gamesArray);
+
+    if (querySnapshot.docs.length < GAMES_PER_PAGE) {
+        setIsLastPage(true);
+    } else {
+        setIsLastPage(false);
+        const newCursors = [...pageCursors];
+        newCursors[pageIndex] = querySnapshot.docs[querySnapshot.docs.length - 1];
+        setPageCursors(newCursors);
+    }
+  };
+
+  useEffect(() => {
+    loadGamesPage(1);
+  }, []);
+
+  const handleNextPage = () => {
+    const next = currentPage + 1;
+    setCurrentPage(next);
+    loadGamesPage(next);
+  };
+
+  const handlePrevPage = () => {
+    const prev = currentPage - 1;
+    setCurrentPage(prev);
+    loadGamesPage(prev);
+  };
 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -66,25 +121,21 @@ export default function Home() {
     }
   };
 
-  const filteredGames = games.filter((game) => {
-    const matchWord = filters.word === '' || (game.description && game.description.join(' ').toLowerCase().includes(filters.word.toLowerCase()));
-    const matchPrice = filters.price === '' || game.price_pln <= parseFloat(filters.price);
-    const matchType = filters.type === '' || (game.type && game.type.toLowerCase() === filters.type.toLowerCase());
-    const matchPlayers = filters.players === '' || (game.min_players <= parseInt(filters.players) && game.max_players >= parseInt(filters.players));
-    const matchPublisher = filters.publisher === '' || (game.publisher && game.publisher.toLowerCase().includes(filters.publisher.toLowerCase()));
-    return matchWord && matchPrice && matchType && matchPlayers && matchPublisher;
-  });
+  const handleShowCart = () => {
+    if (cart.length === 0) return alert("Koszyk jest pusty");
+    alert("Twój koszyk:\n" + cart.map(g => `- ${g.title}`).join('\n'));
+  };
 
-  const totalPages = Math.ceil(filteredGames.length / GAMES_PER_PAGE);
-  
-  if (currentPage > totalPages && totalPages > 0) {
-    setCurrentPage(totalPages);
-  }
-
-  const currentGames = filteredGames.slice(
-    (currentPage - 1) * GAMES_PER_PAGE,
-    currentPage * GAMES_PER_PAGE
-  );
+  const currentGames = useMemo(() => {
+    return games.filter((game) => {
+      const matchWord = filters.word === '' || (game.description && game.description.join(' ').toLowerCase().includes(filters.word.toLowerCase()));
+      const matchPrice = filters.price === '' || game.price_pln <= parseFloat(filters.price);
+      const matchType = filters.type === '' || (game.type && game.type.toLowerCase() === filters.type.toLowerCase());
+      const matchPlayers = filters.players === '' || (game.min_players <= parseInt(filters.players) && game.max_players >= parseInt(filters.players));
+      const matchPublisher = filters.publisher === '' || (game.publisher && game.publisher.toLowerCase().includes(filters.publisher.toLowerCase()));
+      return matchWord && matchPrice && matchType && matchPlayers && matchPublisher;
+    });
+  }, [games, filters]);
 
   return (
     <>
@@ -94,7 +145,8 @@ export default function Home() {
           <Link href="/add">
             <button>Dodaj nową pozycję</button>
           </Link>
-          <button>Koszyk</button>
+          
+          <button onClick={handleShowCart}>Koszyk ({cart.length})</button>
           
           {user ? (
             <>
@@ -158,6 +210,11 @@ export default function Home() {
                     <Link href={`/game/${game.id}`}>
                       <button>Szczegóły</button>
                     </Link>
+                    
+                    {!game.isSold && (
+                      <button onClick={() => dispatch({type: 'ADD', payload: game})}>Do koszyka</button>
+                    )}
+
                     {user && game.ownerId === user.uid && (
                       <>
                         {!game.isSold && (
@@ -174,29 +231,28 @@ export default function Home() {
             )}
           </main>
 
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '20px' }}>
-              <button 
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                style={{ padding: '8px 15px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
-              >
-                Poprzednia
-              </button>
-              
-              <span style={{ fontWeight: 'bold' }}>
-                Strona {currentPage} z {totalPages}
-              </span>
-              
-              <button 
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                style={{ padding: '8px 15px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
-              >
-                Następna
-              </button>
-            </div>
-          )}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '20px' }}>
+            <button 
+              onClick={handlePrevPage}
+              disabled={currentPage === 1}
+              style={{ padding: '8px 15px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+            >
+              Poprzednia
+            </button>
+            
+            <span style={{ fontWeight: 'bold' }}>
+              Strona {currentPage}
+            </span>
+            
+            <button 
+              onClick={handleNextPage}
+              disabled={isLastPage}
+              style={{ padding: '8px 15px', cursor: isLastPage ? 'not-allowed' : 'pointer' }}
+            >
+              Następna
+            </button>
+          </div>
+
         </div>
       </div>
     </>
