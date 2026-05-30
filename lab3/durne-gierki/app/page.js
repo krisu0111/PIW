@@ -2,7 +2,7 @@
 import { useState, useEffect, useReducer, useMemo } from 'react';
 import Link from 'next/link';
 import { db, auth } from '../lib/firebase';
-import { collection, getDocs, doc, deleteDoc, query, limit, startAfter, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, query, limit, startAfter, orderBy, updateDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
 
 const cartReducer = (state, action) => {
@@ -13,6 +13,13 @@ const cartReducer = (state, action) => {
             newState = [...state, action.payload];
             localStorage.setItem('cart', JSON.stringify(newState));
             return newState;
+        case 'REMOVE':
+            newState = state.filter(item => item.id !== action.payload);
+            localStorage.setItem('cart', JSON.stringify(newState));
+            return newState;
+        case 'CLEAR':
+            localStorage.removeItem('cart');
+            return [];
         case 'INIT':
             return action.payload;
         default:
@@ -28,10 +35,10 @@ export default function Home() {
   const [user, setUser] = useState(null);
 
   const [cart, dispatch] = useReducer(cartReducer, []);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const GAMES_PER_PAGE = 14; 
-  
   const [pageCursors, setPageCursors] = useState([null]);
   const [isLastPage, setIsLastPage] = useState(false);
 
@@ -94,17 +101,12 @@ export default function Home() {
     try {
       await signInWithPopup(auth, provider);
     } catch (error) {
-      console.error("Błąd logowania Google:", error);
       alert("Błąd logowania");
     }
   };
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error("Błąd wylogowywania:", error);
-    }
+    try { await signOut(auth); } catch (error) {}
   };
 
   const handleFilterChange = (e) => {
@@ -121,9 +123,34 @@ export default function Home() {
     }
   };
 
-  const handleShowCart = () => {
-    if (cart.length === 0) return alert("Koszyk jest pusty");
-    alert("Twój koszyk:\n" + cart.map(g => `- ${g.title}`).join('\n'));
+  const handleCheckout = async () => {
+    if (!user) {
+        alert("Musisz być zalogowany, aby dokonać zakupu.");
+        return;
+    }
+    if (cart.length === 0) return;
+
+    const isConfirmed = window.confirm(`Czy na pewno chcesz kupić ${cart.length} gry/gier?`);
+    if (!isConfirmed) return;
+
+    try {
+        for (const item of cart) {
+            const docRef = doc(db, "games", item.id.toString());
+            await updateDoc(docRef, { 
+                isSold: true, 
+                buyerId: user.uid 
+            });
+        }
+        
+        alert("Zakup udany! Dziękujemy.");
+        dispatch({ type: 'CLEAR' });
+        setIsCartOpen(false);
+        loadGamesPage(currentPage);
+        
+    } catch (error) {
+        console.error("Błąd zakupu:", error);
+        alert("Wystąpił błąd podczas finalizacji zakupu.");
+    }
   };
 
   const currentGames = useMemo(() => {
@@ -137,16 +164,20 @@ export default function Home() {
     });
   }, [games, filters]);
 
+  const cartTotal = cart.reduce((sum, game) => sum + game.price_pln, 0);
+
   return (
     <>
-      <header className="top">
+      <header className="top" style={{ position: 'relative' }}>
         <h1>Durne Gierki</h1>
         <nav style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <Link href="/add">
             <button>Dodaj nową pozycję</button>
           </Link>
           
-          <button onClick={handleShowCart}>Koszyk ({cart.length})</button>
+          <button onClick={() => setIsCartOpen(!isCartOpen)}>
+            Koszyk ({cart.length})
+          </button>
           
           {user ? (
             <>
@@ -155,15 +186,54 @@ export default function Home() {
             </>
           ) : (
             <>
-              <button onClick={handleGoogleLogin}>
-                Zaloguj przez Google
-              </button>
-              <Link href="/login">
-                <button>Zaloguj się</button>
-              </Link>
+              <button onClick={handleGoogleLogin}>Zaloguj przez Google</button>
+              <Link href="/login"><button>Zaloguj się</button></Link>
             </>
           )}
         </nav>
+
+        {isCartOpen && (
+            <div style={{
+                position: 'absolute', top: '60px', right: '10px', width: '250px',
+                background: '#fff', border: '1px solid #000', padding: '10px', 
+                zIndex: 1000, color: '#000'
+            }}>
+                <h3 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #000', paddingBottom: '5px' }}>
+                    Twój Koszyk
+                </h3>
+                
+                {cart.length === 0 ? (
+                    <p style={{ margin: 0 }}>Pusto</p>
+                ) : (
+                    <>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: '200px', overflowY: 'auto' }}>
+                            {cart.map((item) => (
+                                <li key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span>{item.title}</span>
+                                    <span>
+                                        {item.price_pln} zł
+                                        <button 
+                                            onClick={() => dispatch({type: 'REMOVE', payload: item.id})}
+                                            style={{ marginLeft: '5px' }}
+                                        >
+                                            X
+                                        </button>
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                        <hr style={{ border: 'none', borderTop: '1px solid #000', margin: '10px 0' }} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                            <b>Suma:</b>
+                            <b>{cartTotal.toFixed(2)} zł</b>
+                        </div>
+                        <button onClick={handleCheckout} style={{ width: '100%', padding: '5px' }}>
+                            Kup zawartość
+                        </button>
+                    </>
+                )}
+            </div>
+        )}
       </header>
 
       <div className="main-container">
@@ -187,47 +257,55 @@ export default function Home() {
             {currentGames.length === 0 ? (
               <p>Ładowanie z chmury lub brak gier spełniających kryteria.</p>
             ) : (
-              currentGames.map((game) => (
-                <article 
-                  key={game.id} 
-                  className="product-card" 
-                  style={{ 
-                    border: '1px solid #ddd', 
-                    padding: '15px', 
-                    borderRadius: '8px', 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    opacity: game.isSold ? 0.6 : 1,
-                    backgroundColor: game.isSold ? '#f5f5f5' : 'white',
-                    filter: game.isSold ? 'grayscale(100%)' : 'none'
-                  }}
-                >
-                  <h3>{game.title} {game.isSold && <span style={{color: 'red'}}>(SPRZEDANE)</span>}</h3>
-                  <p>Wydawnictwo: {game.publisher}</p>
-                  <p><b>Cena: {game.price_pln} zł</b></p>
-                  
-                  <div style={{ marginTop: 'auto', paddingTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <Link href={`/game/${game.id}`}>
-                      <button>Szczegóły</button>
-                    </Link>
-                    
-                    {!game.isSold && (
-                      <button onClick={() => dispatch({type: 'ADD', payload: game})}>Do koszyka</button>
-                    )}
+              currentGames.map((game) => {
+                const currentPrice = game.highestBid 
+                    || (game.auction ? game.auction.current_bid : null) 
+                    || (game.auction ? game.auction.starting_price : game.price_pln);
+                
+                const canBuyNow = currentPrice < game.price_pln;
 
-                    {user && game.ownerId === user.uid && (
-                      <>
-                        {!game.isSold && (
-                          <Link href={`/edit/${game.id}`}>
-                            <button>Edytuj</button>
-                          </Link>
-                        )}
-                        <button onClick={() => handleDelete(game.id)}>Usuń</button>
-                      </>
-                    )}
-                  </div>
-                </article>
-              ))
+                return (
+                  <article 
+                    key={game.id} 
+                    className="product-card" 
+                    style={{ 
+                      border: '1px solid #ddd', 
+                      padding: '15px', 
+                      borderRadius: '8px', 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      opacity: game.isSold ? 0.6 : 1,
+                      backgroundColor: game.isSold ? '#f5f5f5' : 'white',
+                      filter: game.isSold ? 'grayscale(100%)' : 'none'
+                    }}
+                  >
+                    <h3>{game.title} {game.isSold && <span style={{color: 'red'}}>(SPRZEDANE)</span>}</h3>
+                    <p>Wydawnictwo: {game.publisher}</p>
+                    <p><b>Cena: {game.price_pln} zł</b></p>
+                    
+                    <div style={{ marginTop: 'auto', paddingTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <Link href={`/game/${game.id}`}>
+                        <button>Szczegóły</button>
+                      </Link>
+                      
+                      {!game.isSold && canBuyNow && (
+                        <button onClick={() => dispatch({type: 'ADD', payload: game})}>Do koszyka</button>
+                      )}
+
+                      {user && game.ownerId === user.uid && (
+                        <>
+                          {!game.isSold && (
+                            <Link href={`/edit/${game.id}`}>
+                              <button>Edytuj</button>
+                            </Link>
+                          )}
+                          <button onClick={() => handleDelete(game.id)}>Usuń</button>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
             )}
           </main>
 
@@ -239,11 +317,7 @@ export default function Home() {
             >
               Poprzednia
             </button>
-            
-            <span style={{ fontWeight: 'bold' }}>
-              Strona {currentPage}
-            </span>
-            
+            <span style={{ fontWeight: 'bold' }}>Strona {currentPage}</span>
             <button 
               onClick={handleNextPage}
               disabled={isLastPage}
@@ -252,7 +326,6 @@ export default function Home() {
               Następna
             </button>
           </div>
-
         </div>
       </div>
     </>
