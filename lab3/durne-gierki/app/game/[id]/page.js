@@ -41,21 +41,16 @@ export default function GameDetails({ params }) {
         });
     }, [params]);
 
-    const handleBuy = async () => {
-        if (!user) return alert("Brak autoryzacji");
-        if (game.ownerId === user.uid) return alert("To twoja gra");
-
-        const isConfirmed = window.confirm("Czy na pewno chcesz kupić tę grę?");
-        if (isConfirmed) {
-            try {
-                const docRef = doc(db, "games", game.id.toString());
-                await updateDoc(docRef, { isSold: true, buyerId: user.uid });
-                setGame({ ...game, isSold: true });
-                alert("Zakup udany");
-            } catch (error) {
-                console.error("Błąd zakupu:", error);
-                alert("Błąd zakupu");
-            }
+    const handleAddToCart = () => {
+        const currentCart = JSON.parse(localStorage.getItem('cart')) || [];
+        const isAlreadyInCart = currentCart.find(item => item.id === game.id);
+        
+        if (!isAlreadyInCart) {
+            const newCart = [...currentCart, game];
+            localStorage.setItem('cart', JSON.stringify(newCart));
+            alert("Dodano do koszyka! Wróć na stronę główną, aby sfinalizować zakup.");
+        } else {
+            alert("Gra znajduje się już w Twoim koszyku.");
         }
     };
 
@@ -192,10 +187,10 @@ export default function GameDetails({ params }) {
 
                             {canBuyNow && (
                                 <button 
-                                    onClick={handleBuy}
+                                    onClick={handleAddToCart}
                                     style={{ padding: '6px 20px', cursor: 'pointer', background: '#555', color: '#fff', border: 'none', height: 'fit-content' }}
                                 >
-                                    Kup Teraz ({game.price_pln} zł)
+                                    Dodaj do koszyka ({game.price_pln} zł)
                                 </button>
                             )}
                         </div>
